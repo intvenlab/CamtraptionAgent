@@ -217,9 +217,11 @@ def parse_time_schedule(schedule_string):
   return (mode_int)
  
 def get_temp():
+  logging.info("board temp: ")
   logging.info(subprocess.run(['i2cget', '-y', '0x01', '0x08', '0x32' ], stderr=subprocess.PIPE, stdout=subprocess.PIPE))
 
 def get_last_startup_reason():
+  logging.info("startup reason: ")
   logging.info(subprocess.run(['i2cget', '-y', '0x01', '0x08', '0x0b' ], stderr=subprocess.PIPE, stdout=subprocess.PIPE))
 
 # normal usecase
