@@ -47,6 +47,7 @@ def conditional_shutdown():
     time_last_login = datetime.fromtimestamp(os.stat("/home/camtraption/.last_login").st_mtime)
     if (time_last_login < datetime.now() - timedelta(seconds=wait_time)):
         # not logged in recently, time to shut down
+        print ("shutdown...")
         os.system("sudo shutdown -h 'now'")
 
 
@@ -222,6 +223,7 @@ def get_temp():
 
 def get_last_startup_reason():
   logging.info("startup reason: ")
+  logging.info(subprocess.run(['sudo', '/home/camtraption/wittypi/get_startup_reason.sh' ], stderr=subprocess.PIPE, stdout=subprocess.PIPE))
   logging.info(subprocess.run(['i2cget', '-y', '0x01', '0x08', '0x0b' ], stderr=subprocess.PIPE, stdout=subprocess.PIPE))
 
 # normal usecase
