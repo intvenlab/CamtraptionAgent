@@ -1,4 +1,5 @@
 
+import smbus
 
 from dateutil import parser
 from datetime import datetime, timedelta
@@ -132,75 +133,77 @@ def sync_logs_usb():
     logging.info(subprocess.run(['sudo', 'umount','/mnt/usb'  ], stderr=subprocess.PIPE, stdout=subprocess.PIPE))
     logging.info("all logs synced to usb")
 
-
-
+ 
 def parse_time_schedule(schedule_string):
-#  sample output file:   https://github.com/uugear/Witty-Pi-4/blob/main/Software/wittypi/schedules/on_5m_every_20m.wpi
-#  the goal here is to have robust parsing of what we find in the artists name field, which can be changed by the end user.  
+  
+#  schedule_string = "0100:C2,0230:C1,1230:C1,1250:c2,1300:c1,1500:c3"
+#  t_now = datetime.strptime("0050", "%H%M"); print ("Case1")
+#  t_now = datetime.strptime("0059", "%H%M"); print ("Case2")
+#  t_now = datetime.strptime("0100", "%H%M"); print ("Case2 special")
+#  t_now = datetime.strptime("0102", "%H%M"); print ("Case2 special")
+#  t_now = datetime.strptime("1230", "%H%M"); print ("case2 special")  # test case 2
+#  t_now = datetime.strptime("1245", "%H%M"); print ("case2")  # test case 2
+#  t_now = datetime.strptime("1400", "%H%M"); print ("case3")
+#  t_now = datetime.strptime("1300", "%H%M"); print ("case3 special")
 
+  t_now = datetime.now()
+
+  print("Parse time schedule: ", schedule_string)
   onduration = 2  # the amount of time the system is on.
+  t_now = t_now + timedelta(seconds=(onduration +1)* 60)
+
   logging.info("parsing schedule string from camera: {}".format(schedule_string))
   if not schedule_string: 
       schedule_string = "0600:C1,1800:C2"
       logging.info("no string found, assuming default schedule string: {}".format(schedule_string))
   
-  witty_output =  "# Warning,this file is automaticly generated based on the artists name on the camera\n"
-#  witty_output = witty_output + "BEGIN\t2022-06-01 00:00:00\n"
-  witty_output = witty_output + "BEGIN\t" + datetime.now().strftime("%Y-%m-%d ") + schedule_string[0:2] + ":" + schedule_string[2:4] + ":00\n"
-  witty_output = witty_output + "END\t2035-07-31 23:59:59\n"
-  camtraption_output = "h,m,cameramode"
-  minute_subtractor = 1440 # we need to have 1440 minutes in the witty schedule or it doesn't run exactly every day.  
- 
-  start = parser.parse("2022-06-01 00:00:00")
-  last_time = start
  
   schedule_times = []
   schedule_modes = []
-  first_scheduled_item = True
 
- 
   for x in sorted(schedule_string.split(",")):
     hours = x[0:2]
     minutes = x[2:4]
     mode = x[5:]
     schedule_times.append(x[0:4])
     schedule_modes.append(mode)
-    duration = (start + timedelta(hours=int(hours), minutes= int(minutes))) - last_time
-    time_change = int(divmod(duration.total_seconds(), 60)[0])
-    if first_scheduled_item:
-      witty_output = witty_output + "ON\tM{}\n".format(onduration)
-      first_scheduled_item = False
-    else: 
-      witty_output = witty_output + "OFF\tM{}\n".format(time_change)
-      witty_output = witty_output + "ON\tM{}\n".format(onduration)
-
-    minute_subtractor = minute_subtractor -  time_change - onduration
-#    print ("minute_subtractor: {}".format(minute_subtractor))
-    last_time = last_time + timedelta( minutes= (time_change+onduration))
-   
-#    print ("last time: " , last_time)
-  witty_output = witty_output + "OFF\tM{} #stay off for the remainder of the day total on and off time must equal 1440 minutes for accurate daily schedule!  \n".format(minute_subtractor)
- 
-#  print (witty_output)
-  f = open("/home/camtraption/wittypi/schedule.wpi", "w")
-  f.write(witty_output)
-  f.close()
-
-  logging.info(subprocess.run(['/home/camtraption/wittypi/runScript.sh' ], stderr=subprocess.PIPE, stdout=subprocess.PIPE))
-  logging.info("final witty schedule: {}".format(witty_output))
   
-  newmode = schedule_modes[len(schedule_modes)-1]
 
-  schedule_modes.reverse()
+  newmode = ""
+
+  i =0
   for scht in schedule_times:
-    mode = schedule_modes.pop()
     hours = scht[0:2]
     minutes = scht[2:4]
     t = datetime.strptime(scht, "%H%M")
-    if (t.time() < datetime.now().time()):  
-        print("Match!", t.time(), mode)
-        newmode=mode
-  
+#    print()
+#    print("Time now: " , t_now.time())
+    if (i+1 >= len(schedule_times)):
+      next_t = datetime.strptime(schedule_times[0], "%H%M")
+    else: 
+      next_t = datetime.strptime(schedule_times[i+1], "%H%M")
+#    print ("Schd Time: ", t.time())
+#    print ("Next Time: ", next_t.time())
+    if (t_now.time() <= t.time() and i == 0):  
+#        print ("Case1")
+        set_wakeup(schedule_times[i])
+        newmode=schedule_modes[i]
+
+    if (t_now.time() >= t.time() and t_now.time() < next_t.time() ):  
+#        print ("Case2")
+        newmode=schedule_modes[i]
+        set_wakeup(schedule_times[i+1])
+    if (t_now.time() >= t.time() and i == len(schedule_times) - 1):  
+#        print ("Case3")
+        newmode=schedule_modes[i]
+        set_wakeup(schedule_times[0])
+
+    i = i + 1
+    
+#  print("newmode: ", newmode) 
+  logging.info("newmode: " + newmode)
+
+  mode_int = ""
   if newmode.upper() == "AUTO": mode_int = "Auto"
   if newmode.upper() == "FV": mode_int = "Fv"
   if newmode.upper() == "P": mode_int = "P"
@@ -213,10 +216,53 @@ def parse_time_schedule(schedule_string):
   if newmode.upper() == "C2": mode_int = "Unknown value 0010"
   if newmode.upper() == "C3": mode_int = "Unknown value 0011"
 
-#  print(mode_int)
+  print(mode_int)
 
   return (mode_int)
  
+
+def set_wakeup(timestamp):
+    hours = timestamp[0:2]
+    minutes = timestamp[2:4]
+    day = datetime.today().day
+    alarm_time = datetime.strptime(timestamp, "%H%M")
+    logging.info ("set wakeup: {}".format(alarm_time))
+
+    bus = smbus.SMBus(1)
+    address = 0x08
+    
+    bus.write_byte_data(address,27, 00)   # second
+    bus.write_byte_data(address,28, int(str(alarm_time.minute),16))   # min
+    bus.write_byte_data(address,29, int(str(alarm_time.hour),16))   # hour
+    bus.write_byte_data(address,30, int(str(day),16))   # date
+    bus.write_byte_data(address,31, 00)   # weekday
+
+    bus.write_byte_data(address,32, 00)   # second
+    bus.write_byte_data(address,33, int(str(alarm_time.minute+2),16))   # min
+    bus.write_byte_data(address,34, int(str(alarm_time.hour),16))   # hour
+    bus.write_byte_data(address,35, int(str(day),16))   # date
+    bus.write_byte_data(address,36, 00)   # weekday
+
+def get_temp():
+  logging.info("board temp: ")
+  logging.info(subprocess.run(['i2cget', '-y', '0x01', '0x08', '0x32' ], stderr=subprocess.PIPE, stdout=subprocess.PIPE))
+
+def get_last_startup_reason():
+  logging.info("startup reason: ")
+  logging.info(subprocess.run(['sudo', '/home/camtraption/wittypi/get_startup_reason.sh' ], stderr=subprocess.PIPE, stdout=subprocess.PIPE))
+  logging.info(subprocess.run(['i2cget', '-y', '0x01', '0x08', '0x0b' ], stderr=subprocess.PIPE, stdout=subprocess.PIPE))
+
+# normal usecase
+
+#parse_time_schedule("0623:C1,1823:C2")
+
+# test out of order schedule
+#parse_time_schedule("1823:C2,0623:C1")
+
+# complex example,
+
+if __name__ == "__main__":
+    main()
 def get_temp():
   logging.info("board temp: ")
   logging.info(subprocess.run(['i2cget', '-y', '0x01', '0x08', '0x32' ], stderr=subprocess.PIPE, stdout=subprocess.PIPE))
