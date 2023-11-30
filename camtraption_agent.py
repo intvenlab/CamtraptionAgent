@@ -14,7 +14,7 @@ import os
 import subprocess
 
 
-version = 0.1
+version = 0.2
 
 logname = "/var/tmp/camtraption-" + ('{:%Y%m%d-%H%M%S}.log'.format(datetime.now()))
 
@@ -146,10 +146,11 @@ def parse_time_schedule(schedule_string):
 #  t_now = datetime.strptime("1245", "%H%M"); print ("case2")  # test case 2
 #  t_now = datetime.strptime("1400", "%H%M"); print ("case3")
 #  t_now = datetime.strptime("1300", "%H%M"); print ("case3 special")
+#  t_now = datetime.strptime("1600", "%H%M"); print ("case3 special")
 
   t_now = datetime.now()
 
-  print("Parse time schedule: ", schedule_string)
+#  print("Parse time schedule: ", schedule_string)
   onduration = 2  # the amount of time the system is on.
   t_now = t_now + timedelta(seconds=(onduration +1)* 60)
 
@@ -187,17 +188,17 @@ def parse_time_schedule(schedule_string):
 #    print ("Next Time: ", next_t.time())
     if (t_now.time() <= t.time() and i == 0):  
 #        print ("Case1")
-        set_wakeup(schedule_times[i])
+        set_wakeup(schedule_times[i], 0)
         newmode=schedule_modes[i]
 
     if (t_now.time() >= t.time() and t_now.time() < next_t.time() ):  
 #        print ("Case2")
         newmode=schedule_modes[i]
-        set_wakeup(schedule_times[i+1])
+        set_wakeup(schedule_times[i+1], 0)
     if (t_now.time() >= t.time() and i == len(schedule_times) - 1):  
 #        print ("Case3")
         newmode=schedule_modes[i]
-        set_wakeup(schedule_times[0])
+        set_wakeup(schedule_times[0], 1)
 
     i = i + 1
     
@@ -217,17 +218,22 @@ def parse_time_schedule(schedule_string):
   if newmode.upper() == "C2": mode_int = "Unknown value 0010"
   if newmode.upper() == "C3": mode_int = "Unknown value 0011"
 
-  print(mode_int)
+  #print(mode_int)
 
   return (mode_int)
  
 
-def set_wakeup(timestamp):
+def set_wakeup(timestamp, dayoffset):
     hours = timestamp[0:2]
     minutes = timestamp[2:4]
-    day = datetime.today().day
+
+    current_date = datetime.today() + timedelta(days=dayoffset)
+    day = current_date.day 
+
     alarm_time = datetime.strptime(timestamp, "%H%M")
-    logging.info ("set wakeup: {}".format(alarm_time))
+    logging.info ("set wakeup: {}".format(alarm_time.time()))
+#    logging.info ("day offset: {}".format(dayoffset))
+    logging.info (f"day offset: {dayoffset}, set day: {day}")
 
     bus = smbus.SMBus(1)
     address = 0x08
@@ -239,14 +245,25 @@ def set_wakeup(timestamp):
     bus.write_byte_data(address,31, 00)   # weekday
   
     alarm_time = alarm_time + timedelta(seconds=120)
-    logging.info ("set shutdown: {}".format(alarm_time))
+    logging.info ("set shutdown: {}".format(alarm_time.time()))
 
     bus.write_byte_data(address,32, 00)   # second
     bus.write_byte_data(address,33, int(str(alarm_time.minute),16))   # min
     bus.write_byte_data(address,34, int(str(alarm_time.hour),16))   # hour
     bus.write_byte_data(address,35, int(str(day),16))   # date
     bus.write_byte_data(address,36, 00)   # weekday
+    
+    logging.info("Alarm1: Weekday: " +  hex(bus.read_byte_data(address, 31)) + 
+        " Date: " + hex(bus.read_byte_data(address, 30)) + 
+        " Hour: " + hex(bus.read_byte_data(address, 29)) + 
+        " Min: " + hex(bus.read_byte_data(address, 28)) + 
+        " Sec: " + hex(bus.read_byte_data(address, 27)))
 
+    logging.info("Alarm2: Weekday: " +  hex(bus.read_byte_data(address, 36)) + 
+        " Date: " + hex(bus.read_byte_data(address, 35)) +
+        " Hour: " + hex(bus.read_byte_data(address, 34)) +
+        " Min: " + hex(bus.read_byte_data(address, 33)) +
+        " Sec: " + hex(bus.read_byte_data(address, 32)))
 
 def get_last_startup_reason():
   logging.info("startup reason: ")
