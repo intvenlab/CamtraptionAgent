@@ -36,6 +36,7 @@ def main():
     wakeup_camera_gpio()
     shutter_camera_gpio()
     Result, artist_string = camera_config()
+    get_alarm_schedule()
     reset_usb()
     shutter_camera_gpio()
     sync_logs_usb()
@@ -43,7 +44,7 @@ def main():
     conditional_shutdown()
 
 def conditional_shutdown():
-    wait_time = 140   
+    wait_time = 60   
     time.sleep(wait_time)
     time_last_login = datetime.fromtimestamp(os.stat("/home/camtraption/.last_login").st_mtime)
     if (time_last_login < datetime.now() - timedelta(seconds=wait_time+60)):
@@ -236,54 +237,30 @@ def set_wakeup(timestamp):
     bus.write_byte_data(address,29, int(str(alarm_time.hour),16))   # hour
     bus.write_byte_data(address,30, int(str(day),16))   # date
     bus.write_byte_data(address,31, 00)   # weekday
+  
+    alarm_time = alarm_time + timedelta(seconds=120)
+    logging.info ("set shutdown: {}".format(alarm_time))
 
     bus.write_byte_data(address,32, 00)   # second
-    bus.write_byte_data(address,33, int(str(alarm_time.minute+2),16))   # min
+    bus.write_byte_data(address,33, int(str(alarm_time.minute),16))   # min
     bus.write_byte_data(address,34, int(str(alarm_time.hour),16))   # hour
     bus.write_byte_data(address,35, int(str(day),16))   # date
     bus.write_byte_data(address,36, 00)   # weekday
 
-def get_temp():
-  logging.info("board temp: ")
-  logging.info(subprocess.run(['i2cget', '-y', '0x01', '0x08', '0x32' ], stderr=subprocess.PIPE, stdout=subprocess.PIPE))
 
 def get_last_startup_reason():
   logging.info("startup reason: ")
   logging.info(subprocess.run(['sudo', '/home/camtraption/wittypi/get_startup_reason.sh' ], stderr=subprocess.PIPE, stdout=subprocess.PIPE))
   logging.info(subprocess.run(['i2cget', '-y', '0x01', '0x08', '0x0b' ], stderr=subprocess.PIPE, stdout=subprocess.PIPE))
 
-# normal usecase
+def get_alarm_schedule():
+  logging.info("Alarm Schedule: ")
+  logging.info(subprocess.run(['sudo', '/home/camtraption/wittypi/get_startup_time.sh' ], stderr=subprocess.PIPE, stdout=subprocess.PIPE))
 
-#parse_time_schedule("0623:C1,1823:C2")
 
-# test out of order schedule
-#parse_time_schedule("1823:C2,0623:C1")
-
-# complex example,
-
-if __name__ == "__main__":
-    main()
 def get_temp():
   logging.info("board temp: ")
   logging.info(subprocess.run(['i2cget', '-y', '0x01', '0x08', '0x32' ], stderr=subprocess.PIPE, stdout=subprocess.PIPE))
-
-def get_last_startup_reason():
-  logging.info("startup reason: ")
-  logging.info(subprocess.run(['sudo', '/home/camtraption/wittypi/get_startup_reason.sh' ], stderr=subprocess.PIPE, stdout=subprocess.PIPE))
-  logging.info(subprocess.run(['i2cget', '-y', '0x01', '0x08', '0x0b' ], stderr=subprocess.PIPE, stdout=subprocess.PIPE))
-
-# normal usecase
-
-#parse_time_schedule("0623:C1,1823:C2")
-
-# test out of order schedule
-#parse_time_schedule("1823:C2,0623:C1")
-
-# complex example,
-# c1 = daytime, c2 = nighttime, c3 = dusk (sunrise and sunset)
-#parse_time_schedule("0523:C3,0620:c1,1823:C3,1900:c2")
-
-
 
 
 
