@@ -40,6 +40,7 @@ def main():
     wakeup_camera_gpio()
     shutter_camera_gpio()
     Result, artist_string = camera_config()
+    get_rtc_time()
     get_alarm_schedule()
     reset_usb()
     shutter_camera_gpio()
@@ -83,7 +84,6 @@ def camera_config():
         OK, datetime_config = gp.gp_widget_get_child_by_name(cfg, 'datetime')
         widget_type = datetime_config.get_type()
         raw_value = datetime_config.get_value()
-        camera_time = datetime.fromtimestamp(raw_value) # human readable
         set_clock(raw_value)
 
         artist_cfg = cfg.get_child_by_name('artist')
@@ -135,11 +135,18 @@ def reset_usb():
     logging.info("reset usb complete")
 
 def set_clock(epoch):
-#    os.system("sudo echo date -s  '@{}'".format(epoch))
+
+    camera_time = datetime.fromtimestamp(epoch) # human readable
+    system_time = datetime.now()
+    rtc_time = get_rtc_time()
+
+    logging.info("Camera Time: " + camera_time.isoformat(timespec='seconds'))
+    logging.info("System Time: " + system_time.isoformat(timespec='seconds') + " Delta from Camera time(s): {}".format((camera_time - system_time).total_seconds()))
+    logging.info("RTC Time:    " + rtc_time.isoformat(timespec='seconds') + " Delta from Camera time(s): {}".format((camera_time - rtc_time).total_seconds()))
+    logging.info("sync time to RTC using canon camera epoch: {}".format(epoch))
     logging.info(subprocess.run(['sudo', 'date','-s', '@{}'.format(epoch) ], stderr=subprocess.PIPE, stdout=subprocess.PIPE))
     logging.info(subprocess.run(['sudo', '/home/camtraption/wittypi/system_to_rtc.sh' ], stderr=subprocess.PIPE, stdout=subprocess.PIPE))
-#    os.system("sudo /home/camtraption/wittypi/system_to_rtc.sh")
-    logging.info("sync time to RTC using canon camera epoch: {}".format(epoch))
+
 def get_input_voltage():
     logging.info(subprocess.run(['sudo', '/home/camtraption/wittypi/get_input_voltage.sh' ], stderr=subprocess.PIPE, stdout=subprocess.PIPE))
 
@@ -291,6 +298,22 @@ def get_last_startup_reason():
   logging.info(subprocess.run(['sudo', '/home/camtraption/wittypi/get_startup_reason.sh' ], stderr=subprocess.PIPE, stdout=subprocess.PIPE))
   logging.info(subprocess.run(['i2cget', '-y', '0x01', '0x08', '0x0b' ], stderr=subprocess.PIPE, stdout=subprocess.PIPE))
 
+def get_rtc_time():
+
+  bus = smbus.SMBus(1)
+  address = 0x08
+  rtc_time = datetime.strptime(str(decode_bcd(bus.read_byte_data(address, 64))) + 
+        " " + str(decode_bcd(bus.read_byte_data(address, 63))) + 
+        " " + str(decode_bcd(bus.read_byte_data(address, 62))) + 
+        " " + str(decode_bcd(bus.read_byte_data(address, 61))) + 
+        " " + str(decode_bcd(bus.read_byte_data(address, 60))) + 
+        " " + str(decode_bcd(bus.read_byte_data(address, 59))) + 
+        " " + str(decode_bcd(bus.read_byte_data(address, 58))),
+
+      "%y %m %w %d %H %M %S")
+#  logging.info("RTC time " + rtc_time.isoformat())
+  return rtc_time
+
 def get_alarm_schedule():
   logging.info("Alarm Schedule: ")
   logging.info(subprocess.run(['sudo', '/home/camtraption/wittypi/get_startup_time.sh' ], stderr=subprocess.PIPE, stdout=subprocess.PIPE))
@@ -317,6 +340,8 @@ def get_temp():
   logging.info("board temp: ")
   logging.info(subprocess.run(['i2cget', '-y', '0x01', '0x08', '0x32' ], stderr=subprocess.PIPE, stdout=subprocess.PIPE))
 
+def decode_bcd(bcd):
+    return (bcd // 16 * 10) + (bcd % 16)
 
 
 if __name__ == "__main__":
