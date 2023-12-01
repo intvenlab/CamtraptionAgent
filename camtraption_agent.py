@@ -14,7 +14,6 @@ import os
 import subprocess
 
 
-version = 0.2
 
 logname = "/var/tmp/camtraption-" + ('{:%Y%m%d-%H%M%S}.log'.format(datetime.now()))
 
@@ -24,7 +23,6 @@ logging.basicConfig(filename=logname,
 #                    format='%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s',
                     level=logging.DEBUG)
 
-logging.info("Starting camtraption_agent.py version {}".format(version))
 
 pin_wakeup = 26
 pin_shutter = 19
@@ -33,6 +31,9 @@ sysup_pin = 17
 halt_pin = 4
 
 def main():
+    version = 0.3
+    hwid = getserial()
+    logging.info(f"Starting camtraption_agent.py version {version}, hwid: {hwid}")
     notify_witty_board_up()
     get_input_voltage()
     get_last_startup_reason()
@@ -88,6 +89,13 @@ def camera_config():
 
         artist_cfg = cfg.get_child_by_name('artist')
         artist_string = artist_cfg.get_value()
+
+        model_cfg = cfg.get_child_by_name('cameramodel')
+        serial_cfg = cfg.get_child_by_name('eosserialnumber')
+        lens_cfg = cfg.get_child_by_name('lensname')
+        availableshots_cfg = cfg.get_child_by_name('availableshots')
+
+        logging.info("Camera: " + model_cfg.get_value() + " Serial: " + serial_cfg.get_value() + " lens: " + lens_cfg.get_value() + " Available Shots: " + availableshots_cfg.get_value())
 
         OK, mode_dial_config = gp.gp_widget_get_child_by_name(cfg, 'autoexposuremodedial')
         new_mode = parse_time_schedule(artist_string)
@@ -343,6 +351,19 @@ def get_temp():
 def decode_bcd(bcd):
     return (bcd // 16 * 10) + (bcd % 16)
 
+def getserial():
+  # Extract serial from cpuinfo file
+  cpuserial = "0000000000000000"
+  try:
+    f = open('/proc/cpuinfo','r')
+    for line in f:
+      if line[0:6]=='Serial':
+        cpuserial = line[10:26]
+    f.close()
+  except:
+    cpuserial = "ERROR000000000"
+
+  return cpuserial
 
 if __name__ == "__main__":
     sys.exit(main())
