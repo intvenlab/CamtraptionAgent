@@ -29,7 +29,11 @@ logging.info("Starting camtraption_agent.py version {}".format(version))
 pin_wakeup = 26
 pin_shutter = 19
 
+sysup_pin = 17
+halt_pin = 4
+
 def main():
+    notify_witty_board_up()
     get_input_voltage()
     get_last_startup_reason()
     get_temp()
@@ -50,7 +54,22 @@ def conditional_shutdown():
     if (time_last_login < datetime.now() - timedelta(seconds=wait_time+60)):
         # not logged in recently, time to shut down
         print ("shutdown...")
+
         os.system("sudo shutdown -h 'now'")
+
+def notify_witty_board_up():
+    GPIO.setwarnings(False)
+    GPIO.setmode(GPIO.BCM)
+    GPIO.setup(sysup_pin, GPIO.OUT)
+    GPIO.output(sysup_pin, GPIO.HIGH)
+    time.sleep(0.1)
+    GPIO.output(sysup_pin, GPIO.LOW)
+    time.sleep(0.1)
+    GPIO.output(sysup_pin, GPIO.HIGH)
+    time.sleep(0.1)
+    GPIO.output(sysup_pin, GPIO.LOW)
+    time.sleep(0.1)
+    GPIO.setup(sysup_pin, GPIO.IN)
 
 
 
@@ -137,6 +156,9 @@ def sync_logs_usb():
  
 def parse_time_schedule(schedule_string):
   
+  t_now = datetime.now()
+### debug code
+
 #  schedule_string = "0100:C2,0230:C1,1230:C1,1250:c2,1300:c1,1500:c3"
 #  t_now = datetime.strptime("0050", "%H%M"); print ("Case1")
 #  t_now = datetime.strptime("0059", "%H%M"); print ("Case2")
@@ -148,7 +170,6 @@ def parse_time_schedule(schedule_string):
 #  t_now = datetime.strptime("1300", "%H%M"); print ("case3 special")
 #  t_now = datetime.strptime("1600", "%H%M"); print ("case3 special")
 
-  t_now = datetime.now()
 
 #  print("Parse time schedule: ", schedule_string)
   onduration = 2  # the amount of time the system is on.
@@ -273,6 +294,23 @@ def get_last_startup_reason():
 def get_alarm_schedule():
   logging.info("Alarm Schedule: ")
   logging.info(subprocess.run(['sudo', '/home/camtraption/wittypi/get_startup_time.sh' ], stderr=subprocess.PIPE, stdout=subprocess.PIPE))
+  bus = smbus.SMBus(1)
+  address = 0x08
+  logging.info("Alarm1: Weekday: " +  hex(bus.read_byte_data(address, 31)) + 
+        " Date: " + hex(bus.read_byte_data(address, 30)) + 
+        " Hour: " + hex(bus.read_byte_data(address, 29)) + 
+        " Min: " + hex(bus.read_byte_data(address, 28)) + 
+        " Sec: " + hex(bus.read_byte_data(address, 27)))
+
+  logging.info("Alarm2: Weekday: " +  hex(bus.read_byte_data(address, 36)) + 
+        " Date: " + hex(bus.read_byte_data(address, 35)) +
+        " Hour: " + hex(bus.read_byte_data(address, 34)) +
+        " Min: " + hex(bus.read_byte_data(address, 33)) +
+        " Sec: " + hex(bus.read_byte_data(address, 32)))
+
+def get_last_startup_reason():
+  logging.info("startup reason: ")
+  logging.info(subprocess.run(['sudo', '/home/camtraption/wittypi/get_startup_reason.sh' ], stderr=subprocess.PIPE, stdout=subprocess.PIPE))
 
 
 def get_temp():
