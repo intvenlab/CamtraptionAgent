@@ -286,7 +286,7 @@ def set_wakeup(timestamp, dayoffset):
     bus.write_byte_data(address,32, 00)   # second
     bus.write_byte_data(address,33, int(str(alarm_time.minute),16))   # min
     bus.write_byte_data(address,34, int(str(alarm_time.hour),16))   # hour
-    bus.write_byte_data(address,35, int(str(day),16))   # date
+    bus.write_byte_data(address,35, int(str(day-2),16))   # date  HACK Set the shutdown to 2 days prior -- this shutdown alarm was causing the system to wake up
     bus.write_byte_data(address,36, 00)   # weekday
     
     logging.info("Alarm1: Weekday: " +  hex(bus.read_byte_data(address, 31)) + 
