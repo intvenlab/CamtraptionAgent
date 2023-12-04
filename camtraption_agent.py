@@ -57,6 +57,13 @@ def conditional_shutdown():
         # not logged in recently, time to shut down
         print ("shutdown...")
 
+        bus = smbus.SMBus(1)
+        address = 0x08
+    
+        bus.write_byte_data(address,55, 00)   # ctrl2
+        bus.write_byte_data(address,39, 00)   # alarm1
+        bus.write_byte_data(address,40, 00)   # alarm2
+        
         os.system("sudo shutdown -h 'now'")
 
 def notify_witty_board_up():
