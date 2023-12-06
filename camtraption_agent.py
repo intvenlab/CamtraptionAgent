@@ -30,10 +30,13 @@ pin_shutter = 19
 sysup_pin = 17
 halt_pin = 4
 
+camera_time_epoch = 0
+
 def main():
     version = 0.3
     hwid = getserial()
     logging.info(f"Starting camtraption_agent.py version {version}, hwid: {hwid}")
+    dump_all_i2c_reg()
     notify_witty_board_up()
     get_input_voltage()
     get_last_startup_reason()
@@ -45,6 +48,7 @@ def main():
     get_alarm_schedule()
     reset_usb()
     shutter_camera_gpio()
+    dump_all_i2c_reg()
     sync_logs_usb()
     os.system('cat {}'.format(logname))
     conditional_shutdown()
@@ -57,6 +61,7 @@ def conditional_shutdown():
         # not logged in recently, time to shut down
         print ("shutdown...")
 
+        GPIO.setup(halt_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
         bus = smbus.SMBus(1)
         address = 0x08
     
@@ -69,6 +74,10 @@ def conditional_shutdown():
 def notify_witty_board_up():
     GPIO.setwarnings(False)
     GPIO.setmode(GPIO.BCM)
+    
+    GPIO.setup(halt_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+
+    time.sleep(0.1)
     GPIO.setup(sysup_pin, GPIO.OUT)
     GPIO.output(sysup_pin, GPIO.HIGH)
     time.sleep(0.1)
@@ -92,7 +101,8 @@ def camera_config():
         OK, datetime_config = gp.gp_widget_get_child_by_name(cfg, 'datetime')
         widget_type = datetime_config.get_type()
         raw_value = datetime_config.get_value()
-        set_clock(raw_value)
+        camera_time_epoch = raw_value
+        set_clock(camera_time_epoch)
 
         artist_cfg = cfg.get_child_by_name('artist')
         artist_string = artist_cfg.get_value()
@@ -149,15 +159,27 @@ def reset_usb():
     time.sleep(5)  # we need time for the USB device to come back
     logging.info("reset usb complete")
 
-def set_clock(epoch):
-
-    camera_time = datetime.fromtimestamp(epoch) # human readable
+def check_all_times(epoch):
+    if (epoch != 0):
+      camera_time = datetime.fromtimestamp(epoch) # human readable
+    else:
+      camera_time = datetime.now()
     system_time = datetime.now()
     rtc_time = get_rtc_time()
+    alarm1 = get_witty_alarm1_time()
+    alarm2 = get_witty_alarm2_time()
+    rtc_alarm = get_witty_rtc_alarm_time()
 
-    logging.info("Camera Time: " + camera_time.isoformat(timespec='seconds'))
-    logging.info("System Time: " + system_time.isoformat(timespec='seconds') + " Delta from Camera time(s): {}".format((camera_time - system_time).total_seconds()))
-    logging.info("RTC Time:    " + rtc_time.isoformat(timespec='seconds') + " Delta from Camera time(s): {}".format((camera_time - rtc_time).total_seconds()))
+    logging.info("Camera Time:    " + camera_time.isoformat(timespec='seconds'))
+    logging.info("System Time:    " + system_time.isoformat(timespec='seconds') + " Delta from Camera time(s): {}".format((camera_time - system_time).total_seconds()))
+    logging.info("RTC Time:       " + rtc_time.isoformat(timespec='seconds') + " Delta from Camera time(s): {}".format((camera_time - rtc_time).total_seconds()))
+    logging.info("Alarm1 Time:    " + alarm1.isoformat(timespec='seconds'))
+    logging.info("Alarm2 Time:    " + alarm2.isoformat(timespec='seconds'))
+    logging.info("RTC alarm:      " + rtc_alarm.isoformat(timespec='seconds'))
+	
+def set_clock(epoch):
+    check_all_times(epoch)
+
     logging.info("sync time to RTC using canon camera epoch: {}".format(epoch))
     logging.info(subprocess.run(['sudo', 'date','-s', '@{}'.format(epoch) ], stderr=subprocess.PIPE, stdout=subprocess.PIPE))
     logging.info(subprocess.run(['sudo', '/home/camtraption/wittypi/system_to_rtc.sh' ], stderr=subprocess.PIPE, stdout=subprocess.PIPE))
@@ -286,6 +308,12 @@ def set_wakeup(timestamp, dayoffset):
     bus.write_byte_data(address,29, int(str(alarm_time.hour),16))   # hour
     bus.write_byte_data(address,30, int(str(day),16))   # date
     bus.write_byte_data(address,31, 00)   # weekday
+    
+    bus.write_byte_data(address,65, 00)   # second
+    bus.write_byte_data(address,66, int(str(alarm_time.minute),16))   # min
+    bus.write_byte_data(address,67, int(str(alarm_time.hour),16))   # hour
+    bus.write_byte_data(address,68, int(str(day),16))   # date
+    bus.write_byte_data(address,69, 00)   # weekday
   
     alarm_time = alarm_time + timedelta(seconds=120)
     logging.info ("set shutdown: {}".format(alarm_time.time()))
@@ -293,20 +321,18 @@ def set_wakeup(timestamp, dayoffset):
     bus.write_byte_data(address,32, 00)   # second
     bus.write_byte_data(address,33, int(str(alarm_time.minute),16))   # min
     bus.write_byte_data(address,34, int(str(alarm_time.hour),16))   # hour
-    bus.write_byte_data(address,35, int(str(day-2),16))   # date  HACK Set the shutdown to 2 days prior -- this shutdown alarm was causing the system to wake up
+    bus.write_byte_data(address,35, int(str(day),16))   # date  HACK Set the shutdown to 2 days prior -- this shutdown alarm was causing the system to wake up
     bus.write_byte_data(address,36, 00)   # weekday
     
-    logging.info("Alarm1: Weekday: " +  hex(bus.read_byte_data(address, 31)) + 
-        " Date: " + hex(bus.read_byte_data(address, 30)) + 
-        " Hour: " + hex(bus.read_byte_data(address, 29)) + 
-        " Min: " + hex(bus.read_byte_data(address, 28)) + 
-        " Sec: " + hex(bus.read_byte_data(address, 27)))
+    check_all_times(camera_time_epoch)
+	
 
-    logging.info("Alarm2: Weekday: " +  hex(bus.read_byte_data(address, 36)) + 
-        " Date: " + hex(bus.read_byte_data(address, 35)) +
-        " Hour: " + hex(bus.read_byte_data(address, 34)) +
-        " Min: " + hex(bus.read_byte_data(address, 33)) +
-        " Sec: " + hex(bus.read_byte_data(address, 32)))
+def dump_all_i2c_reg():
+  logging.info("Dump all i2c:")
+  bus = smbus.SMBus(1)
+  address = 0x08
+  for i in range(0,72):
+      logging.info(f"Reg: {i} " + str(decode_bcd(bus.read_byte_data(address, i))))
 
 def get_last_startup_reason():
   logging.info("startup reason: ")
@@ -314,10 +340,10 @@ def get_last_startup_reason():
   logging.info(subprocess.run(['i2cget', '-y', '0x01', '0x08', '0x0b' ], stderr=subprocess.PIPE, stdout=subprocess.PIPE))
 
 def get_rtc_time():
-
   bus = smbus.SMBus(1)
   address = 0x08
-  rtc_time = datetime.strptime(str(decode_bcd(bus.read_byte_data(address, 64))) + 
+  try:
+    rtc_time = datetime.strptime(str(decode_bcd(bus.read_byte_data(address, 64))) + 
         " " + str(decode_bcd(bus.read_byte_data(address, 63))) + 
         " " + str(decode_bcd(bus.read_byte_data(address, 62))) + 
         " " + str(decode_bcd(bus.read_byte_data(address, 61))) + 
@@ -326,9 +352,59 @@ def get_rtc_time():
         " " + str(decode_bcd(bus.read_byte_data(address, 58))),
 
       "%y %m %w %d %H %M %S")
+  except (ValueError, TypeError):
+    return datetime.min
 #  logging.info("RTC time " + rtc_time.isoformat())
   return rtc_time
 
+def get_witty_alarm1_time():
+  bus = smbus.SMBus(1)
+  address = 0x08
+  try:
+    alarm1_time = datetime.strptime(str(decode_bcd(bus.read_byte_data(address, 31))) + 
+        " " + str(decode_bcd(bus.read_byte_data(address, 30))) + 
+        " " + str(decode_bcd(bus.read_byte_data(address, 29))) + 
+        " " + str(decode_bcd(bus.read_byte_data(address, 28))) + 
+        " " + str(decode_bcd(bus.read_byte_data(address, 27))),
+
+      "%w %d %H %M %S")
+  except (ValueError, TypeError):
+    return datetime.min
+#  logging.info("RTC time " + rtc_time.isoformat())
+  return alarm1_time
+
+def get_witty_alarm2_time():
+  bus = smbus.SMBus(1)
+  address = 0x08
+  try:
+    alarm2_time = datetime.strptime(str(decode_bcd(bus.read_byte_data(address, 36))) + 
+        " " + str(decode_bcd(bus.read_byte_data(address, 35))) + 
+        " " + str(decode_bcd(bus.read_byte_data(address, 34))) + 
+        " " + str(decode_bcd(bus.read_byte_data(address, 33))) + 
+        " " + str(decode_bcd(bus.read_byte_data(address, 32))),
+
+      "%w %d %H %M %S")
+  except (ValueError, TypeError):
+    return datetime.min
+#  logging.info("RTC time " + rtc_time.isoformat())
+  return alarm2_time
+
+def get_witty_rtc_alarm_time():
+  bus = smbus.SMBus(1)
+  address = 0x08
+  try:
+    rtc_alarm = datetime.strptime(str(decode_bcd(bus.read_byte_data(address, 69))) + 
+        " " + str(decode_bcd(bus.read_byte_data(address, 68))) + 
+        " " + str(decode_bcd(bus.read_byte_data(address, 67))) + 
+        " " + str(decode_bcd(bus.read_byte_data(address, 66))) + 
+        " " + str(decode_bcd(bus.read_byte_data(address, 65))),
+
+      "%w %d %H %M %S")
+  except (ValueError, TypeError):
+    return datetime.min
+#  logging.info("RTC time " + rtc_time.isoformat())
+  return rtc_alarm
+  
 def get_alarm_schedule():
   logging.info("Alarm Schedule: ")
   logging.info(subprocess.run(['sudo', '/home/camtraption/wittypi/get_startup_time.sh' ], stderr=subprocess.PIPE, stdout=subprocess.PIPE))
