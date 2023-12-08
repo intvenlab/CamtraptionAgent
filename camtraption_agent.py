@@ -12,7 +12,7 @@ import RPi.GPIO as GPIO
 import gphoto2 as gp
 import os
 import subprocess
-
+import numpy as np
 
 
 logname = "/var/tmp/camtraption-" + ('{:%Y%m%d-%H%M%S}.log'.format(datetime.now()))
@@ -192,7 +192,10 @@ def get_input_voltage():
     d = decode_bcd(bus.read_byte_data(address, 2))
 
     input_voltage = i + d / 100
-    logging.info("Input Voltage: " + str(input_voltage))
+    c = ChargeInterpolator([0,5,10,15,20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95,100],[3.27,3.61,3.69,3.71,3.73,3.75,3.77,3.79,3.8,3.82,3.84,3.87,3.87,3.91,3.95,3.98,4.02,4.08,4.11,4.15,4.2])
+    percentage = c(input_voltage/3)
+    
+    logging.info("Input Voltage: " + str(input_voltage) + " Percentage SOC: " + str(percentage))
     return (input_voltage)
 
 def sync_logs_usb():
@@ -458,6 +461,23 @@ def getserial():
     cpuserial = "ERROR000000000"
 
   return cpuserial
+
+
+class ChargeInterpolator:
+    def __init__(self, socs, voltages):
+        if len(voltages) != len(socs):
+            raise ValueError("Length of voltages must match length of SOCs")
+        if sorted(voltages) != voltages:
+            raise ValueError("Voltages must be in ascending order")
+        if sorted(socs) != socs:
+            raise ValueError("SOCs must be in ascending order")
+ 
+        self.socs = socs
+        self.voltages = voltages
+   
+    def __call__(self, voltage):
+        return np.interp(voltage, self.voltages, self.socs)
+
 
 if __name__ == "__main__":
     sys.exit(main())
