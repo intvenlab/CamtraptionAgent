@@ -53,7 +53,7 @@ def main():
     conditional_shutdown()
 
 def conditional_shutdown():
-    wait_time = 60   
+    wait_time = 20
     time.sleep(wait_time)
     time_last_login = datetime.fromtimestamp(os.stat("/home/camtraption/.last_login").st_mtime)
     if (time_last_login < datetime.now() - timedelta(seconds=wait_time+60)):
