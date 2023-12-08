@@ -33,7 +33,7 @@ halt_pin = 4
 camera_time_epoch = 0
 
 def main():
-    version = 0.3
+    version = 0.4
     hwid = getserial()
     logging.info(f"Starting camtraption_agent.py version {version}, hwid: {hwid}")
     dump_all_i2c_reg()
@@ -45,7 +45,6 @@ def main():
     shutter_camera_gpio()
     Result, artist_string = camera_config()
     get_rtc_time()
-    get_alarm_schedule()
     reset_usb()
     shutter_camera_gpio()
     dump_all_i2c_reg()
@@ -110,9 +109,11 @@ def camera_config():
         model_cfg = cfg.get_child_by_name('cameramodel')
         serial_cfg = cfg.get_child_by_name('eosserialnumber')
         lens_cfg = cfg.get_child_by_name('lensname')
+        batterylevel_cfg = cfg.get_child_by_name('batterylevel')
         availableshots_cfg = cfg.get_child_by_name('availableshots')
 
         logging.info("Camera: " + model_cfg.get_value() + " Serial: " + serial_cfg.get_value() + " lens: " + lens_cfg.get_value() + " Available Shots: " + availableshots_cfg.get_value())
+        logging.info("Battery Level: " + batterylevel_cfg.get_value() )
 
         OK, mode_dial_config = gp.gp_widget_get_child_by_name(cfg, 'autoexposuremodedial')
         new_mode = parse_time_schedule(artist_string)
@@ -185,7 +186,14 @@ def set_clock(epoch):
     logging.info(subprocess.run(['sudo', '/home/camtraption/wittypi/system_to_rtc.sh' ], stderr=subprocess.PIPE, stdout=subprocess.PIPE))
 
 def get_input_voltage():
-    logging.info(subprocess.run(['sudo', '/home/camtraption/wittypi/get_input_voltage.sh' ], stderr=subprocess.PIPE, stdout=subprocess.PIPE))
+    bus = smbus.SMBus(1)
+    address = 0x08
+    i = decode_bcd(bus.read_byte_data(address, 1))
+    d = decode_bcd(bus.read_byte_data(address, 2))
+
+    input_voltage = i + d / 100
+    logging.info("Input Voltage: " + str(input_voltage))
+    return (input_voltage)
 
 def sync_logs_usb():
 #    logging.info(subprocess.run(['sudo', 'mount','-o', 'rw', '/mnt/usb'  ],stderr=subprocess.PIPE, stdout=subprocess.PIPE))
@@ -331,8 +339,10 @@ def dump_all_i2c_reg():
   logging.info("Dump all i2c:")
   bus = smbus.SMBus(1)
   address = 0x08
+  logging_msg = ""
   for i in range(0,72):
-      logging.info(f"Reg: {i} " + str(decode_bcd(bus.read_byte_data(address, i))))
+      logging_msg += (f"Reg: {i}," + str(decode_bcd(bus.read_byte_data(address, i))) + " ")
+  logging.info(logging_msg)
 
 def get_last_startup_reason():
   logging.info("startup reason: ")
@@ -429,10 +439,11 @@ def get_last_startup_reason():
 
 def get_temp():
   logging.info("board temp: ")
-  logging.info(subprocess.run(['i2cget', '-y', '0x01', '0x08', '0x32' ], stderr=subprocess.PIPE, stdout=subprocess.PIPE))
+#  logging.info(subprocess.run(['i2cget', '-y', '0x01', '0x08', '0x32' ], stderr=subprocess.PIPE, stdout=subprocess.PIPE))
+  logging.info(subprocess.run(['sudo', '/home/camtraption/wittypi/get_temp.sh' ], stderr=subprocess.PIPE, stdout=subprocess.PIPE))
 
 def decode_bcd(bcd):
-    return (bcd // 16 * 10) + (bcd % 16)
+  return (bcd // 16 * 10) + (bcd % 16)
 
 def getserial():
   # Extract serial from cpuinfo file
