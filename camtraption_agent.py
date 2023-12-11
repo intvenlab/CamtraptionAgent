@@ -13,6 +13,7 @@ import gphoto2 as gp
 import os
 import subprocess
 import numpy as np
+from pathlib import Path
 
 
 logname = "/var/tmp/camtraption-" + ('{:%Y%m%d-%H%M%S}.log'.format(datetime.now()))
@@ -204,6 +205,7 @@ def sync_logs_usb():
     logging.info(subprocess.run(['sudo', 'fsck','-y','/dev/sda1'  ], stderr=subprocess.PIPE, stdout=subprocess.PIPE))
 #    os.system('sudo mount -o rw /dev/sda1 /mnt/usb')
     logging.info(subprocess.run(['sudo', 'mount','-o','rw','/dev/sda1','/mnt/usb'  ], stderr=subprocess.PIPE, stdout=subprocess.PIPE))
+    Path("/mnt/usb/logs").mkdir(parents=True, exist_ok=True)
     os.system('sudo rsync -qt /var/tmp/*.log /mnt/usb/logs/')
     logging.info(subprocess.run(['sudo', 'umount','/mnt/usb'  ], stderr=subprocess.PIPE, stdout=subprocess.PIPE))
     logging.info("all logs synced to usb")
