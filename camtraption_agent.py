@@ -34,6 +34,7 @@ halt_pin = 4
 camera_time_epoch = 0
 
 def main():
+    rtc_to_system()
     version = 0.4
     hwid = getserial()
     logging.info(f"Starting camtraption_agent.py version {version}, hwid: {hwid}")
@@ -353,6 +354,9 @@ def get_last_startup_reason():
   logging.info("startup reason: ")
   logging.info(subprocess.run(['sudo', '/home/camtraption/wittypi/get_startup_reason.sh' ], stderr=subprocess.PIPE, stdout=subprocess.PIPE))
   logging.info(subprocess.run(['i2cget', '-y', '0x01', '0x08', '0x0b' ], stderr=subprocess.PIPE, stdout=subprocess.PIPE))
+
+def rtc_to_system():
+  logging.info(subprocess.run(['sudo', '/home/camtraption/wittypi/rtc_to_system.sh' ], stderr=subprocess.PIPE, stdout=subprocess.PIPE))
 
 def get_rtc_time():
   bus = smbus.SMBus(1)
