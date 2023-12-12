@@ -150,9 +150,14 @@ def shutter_camera_gpio():
     GPIO.setwarnings(False)
     GPIO.setmode(GPIO.BCM)
     GPIO.setup(pin_shutter, GPIO.OUT)
+    GPIO.setup(pin_wakeup, GPIO.OUT)
+
+    GPIO.output(pin_wakeup, GPIO.HIGH)
+    time.sleep(2)
     GPIO.output(pin_shutter, GPIO.HIGH)
-    time.sleep(0.2)
+    time.sleep(2)
     GPIO.output(pin_shutter, GPIO.LOW)
+    GPIO.output(pin_wakeup, GPIO.LOW)
     logging.info("fire shutter")
 
 def reset_usb(): 
