@@ -126,8 +126,8 @@ def camera_config():
           camera.set_config(cfg)
 
     except Exception as error:
-        print("No camera found:", error)
-        logging.error("No camera found", error)
+        print("No camera found: ${}" .format(error))
+        logging.error("No camera found ${}".format(error))
         return False, ""
     finally:
         camera.exit()
