@@ -35,7 +35,7 @@ camera_time_epoch = 0
 
 def main():
     rtc_to_system()
-    version = 0.4
+    version = 0.5
     hwid = getserial()
     logging.info(f"Starting camtraption_agent.py version {version}, hwid: {hwid}")
     dump_all_i2c_reg()
@@ -90,6 +90,11 @@ def notify_witty_board_up():
     time.sleep(0.1)
     GPIO.setup(sysup_pin, GPIO.IN)
 
+    bus = smbus.SMBus(1)
+    address = 0x08
+    bus.write_byte_data(address,17, 1)   # I2C_CONF_DEFAULT_ON         
+    bus.write_byte_data(address,47, 10) # I2C_CONF_DEFAULT_ON_DELAY   
+    logging.info("Updated WittyRTC registers: Set autopower on after 10 seconds")
 
 
 def camera_config():
@@ -159,6 +164,7 @@ def shutter_camera_gpio():
     GPIO.output(pin_shutter, GPIO.LOW)
     GPIO.output(pin_wakeup, GPIO.LOW)
     logging.info("fire shutter")
+
 
 def reset_usb(): 
     # warning this resets all usb ports on the rpi...
@@ -344,6 +350,7 @@ def set_wakeup(timestamp, dayoffset):
     bus.write_byte_data(address,36, 00)   # weekday
     
     check_all_times(camera_time_epoch)
+    
 	
 
 def dump_all_i2c_reg():
