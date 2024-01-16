@@ -50,7 +50,7 @@ def main():
     reset_usb()
     shutter_camera_gpio()
     dump_all_i2c_reg()
-    sync_logs_usb()
+#    sync_logs_usb()
     os.system('cat {}'.format(logname))
     conditional_shutdown()
 
@@ -169,7 +169,8 @@ def shutter_camera_gpio():
 def reset_usb(): 
     # warning this resets all usb ports on the rpi...
     logging.info(subprocess.run(['umount', '/mnt/usb'], stderr=subprocess.PIPE, stdout=subprocess.PIPE))
-    logging.info(subprocess.run(['sudo', 'uhubctl','-l', '1-1' ,'-a', '2' ], stderr=subprocess.PIPE, stdout=subprocess.PIPE))
+#    logging.info(subprocess.run(['sudo', 'uhubctl','-l', '1-1' ,'-a', '2' ], stderr=subprocess.PIPE, stdout=subprocess.PIPE))
+    logging.info(subprocess.run(['sudo', 'gphoto2','-l' ], stderr=subprocess.PIPE, stdout=subprocess.PIPE))
     time.sleep(5)  # we need time for the USB device to come back
     logging.info("reset usb complete")
 

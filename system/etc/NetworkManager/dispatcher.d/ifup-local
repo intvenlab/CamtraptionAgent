@@ -1,0 +1,25 @@
+#!/bin/bash
+ 
+INF="$1" # your current interface name such as eth0, wlp4s0 and so on
+STA="$2" # status such as UP or DOWN
+
+HWID="camtraption-$(cat /proc/cpuinfo | grep Serial | cut -d ' ' -f 2| cut -c 8-)"
+ 
+logger "HWID: $HWID"
+
+
+# Send message to /var/log/messages 
+logger "$0 called for interface named $INF with $STA ..."
+ 
+# We just want to work on wlp4s0 interface
+# When matched called another script called /root/bin/setup.wlp4s0.ips
+#case "$INF" in
+        #wlp4s0) logger "Setting up $INF ip address..."; /root/bin/setup.wlp4s0.ips ;;
+#        wlan0) logger "Setting up $INF to $HWID.."; nmcli connection modify Hotspot ssid $HWID ;;
+#esac
+
+if [[ "$INF" == "wlan0" ]]  && [[ "$STA" == "UP" ]]; then
+        logger "Setting up $INF to $HWID.."; 
+	nmcli connection modify Hotspot ssid $HWID ;
+fi
+exit 0
